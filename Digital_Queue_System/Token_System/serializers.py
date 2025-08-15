@@ -1,0 +1,67 @@
+from rest_framework import serializers
+from .models import Department, Doctor, Patient, Appointment, Queue, User
+
+# ------------------------
+# User Serializer
+# ------------------------
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'role', 'password']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        user = User.objects.create_user(**validated_data)
+        return user
+
+
+# ------------------------
+# Department Serializer
+# ------------------------
+class DepartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = '__all__'
+
+
+# ------------------------
+# Doctor Serializer
+# ------------------------
+class DoctorSerializer(serializers.ModelSerializer):
+    department = DepartmentSerializer(read_only=True)
+    department_id = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        source='department',
+        write_only=True
+    )
+
+    class Meta:
+        model = Doctor
+        fields = ['id', 'name', 'specialty', 'department', 'department_id']
+
+
+# ------------------------
+# Patient Serializer
+# ------------------------
+class PatientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Patient
+        fields = '__all__'
+
+
+# ------------------------
+# Appointment Serializer
+# ------------------------
+class AppointmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Appointment
+        fields = '__all__'
+
+
+# ------------------------
+# Queue Serializer
+# ------------------------
+class QueueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Queue
+        fields = '__all__'
