@@ -1,7 +1,7 @@
 # Token_System/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import User, Patient
+from .models import User, Patient, Doctor, Department
 
 @receiver(post_save, sender=User)
 def auto_create_patient_profile(sender, instance, created, **kwargs):
@@ -39,3 +39,24 @@ def update_patient_profile(sender, instance, **kwargs):
                 email=instance.email,
                 date_of_birth=instance.date_of_birth
             )
+
+@receiver(post_save, sender=User)
+def auto_create_doctor_profile(sender, instance, created, **kwargs):
+    """
+    When a User is saved with doctor role,
+    automatically create a Doctor profile for them!
+    """
+    if created and instance.role == 'doctor':
+        # Get or create a default department safely
+        default_department, created = Department.objects.get_or_create(
+            name="General Medicine",
+            defaults={'description': 'Default department for new doctors'}
+        )
+        
+        # Create Doctor profile linked to this User
+        Doctor.objects.create(
+            user=instance,
+            name=instance.username,  # Use username as default name
+            specialty="General Practice",  # Default specialty
+            department=default_department
+        )

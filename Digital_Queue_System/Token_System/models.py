@@ -34,6 +34,13 @@ class Department(models.Model):
 # Doctor
 # ------------------------
 class Doctor(models.Model):
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.CASCADE, 
+        null=True,  # Allow null temporarily
+        blank=True,
+        related_name='doctor_profile'  # This lets us do user.doctor_profile
+    )
     name = models.CharField(max_length=100)
     specialty = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="doctors")
