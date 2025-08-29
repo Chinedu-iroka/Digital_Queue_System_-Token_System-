@@ -12,7 +12,7 @@ def auto_create_patient_profile(sender, instance, created, **kwargs):
     if created and instance.role == 'patient':
         # Create Patient profile linked to this User
         Patient.objects.create(
-            user=instance,  # This is the magic link!
+            user=instance,  
             name=instance.username,  # Use username as default name
             email=instance.email,    # Use user's email
             # date_of_birth will be copied automatically from User model
@@ -47,16 +47,16 @@ def auto_create_doctor_profile(sender, instance, created, **kwargs):
     automatically create a Doctor profile for them!
     """
     if created and instance.role == 'doctor':
-        # Get or create a default department safely
+        
         default_department, created = Department.objects.get_or_create(
             name="General Medicine",
             defaults={'description': 'Default department for new doctors'}
         )
         
-        # Create Doctor profile linked to this User
+        # Doctor profile linked to this User
         Doctor.objects.create(
             user=instance,
-            name=instance.username,  # Use username as default name
-            specialty="General Practice",  # Default specialty
+            name=instance.username,  
+            specialty="General Practice",  
             department=default_department
         )

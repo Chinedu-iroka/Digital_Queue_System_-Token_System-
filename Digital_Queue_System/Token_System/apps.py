@@ -6,5 +6,5 @@ class TokenSystemConfig(AppConfig):
     name = 'Token_System'
 
     def ready(self):
-        # This imports and activates our signals
+        # This imports and activates signals
         import Token_System.signals

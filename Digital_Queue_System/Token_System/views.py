@@ -219,7 +219,7 @@ class QueueViewSet(viewsets.ModelViewSet):
             "message": f"Queue reset successfully. Deleted {delete_count} old entries."
         }, status=status.HTTP_200_OK)
 
-    # You can also override the default 'list' to show today's queue by default
+    # also override the default 'list' to show today's queue by default
     def list(self, request, *args, **kwargs):
         """
         Optionally, you can modify the main GET /api/queues/ to only show today's entries.
