@@ -5,9 +5,10 @@ from .models import Department, Doctor, Patient, Appointment, Queue, User
 # User Serializer
 # ------------------------
 class UserSerializer(serializers.ModelSerializer):
+    date_of_birth = serializers.DateField(required=True)
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'role', 'password']
+        fields = ['id', 'username', 'email', 'role', 'password', 'date_of_birth']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):

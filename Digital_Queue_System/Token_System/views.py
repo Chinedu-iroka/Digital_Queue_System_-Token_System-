@@ -1,19 +1,34 @@
 from django.shortcuts import render
 
 # Create your views here.
-from rest_framework import viewsets, status
+from rest_framework import generics
+# from django.views.decorators.csrf import csrf_exempt
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.decorators import api_view
 from datetime import datetime, timedelta
 from django.db.models import Max
-from .models import Department, Doctor, Patient, Appointment, Queue, User
+from django.contrib.auth import authenticate
+from .models import User
+from django.utils.decorators import method_decorator
+from rest_framework.authtoken.models import Token
+from .models import Department, Doctor, Patient, Appointment, Queue
 from .serializers import (
     DepartmentSerializer, DoctorSerializer, PatientSerializer,
     AppointmentSerializer, QueueSerializer, UserSerializer
 )
 
 # Generic ViewSets for CRUD
+
+# @method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = []
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -38,10 +53,46 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     queryset = Appointment.objects.all()
     serializer_class = AppointmentSerializer
 
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-class QueueViewSet(viewsets.ModelViewSet):
-    queryset = Queue.objects.all()
-    serializer_class = QueueSerializer
+    def post(self, request):
+        try:
+            # Delete the token for the current user
+            request.user.auth_token.delete()
+        except (AttributeError, Token.DoesNotExist):
+            return Response({"error": "No active token found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Successfully logged out."}, status=status.HTTP_200_OK)
+
+class LoginView(APIView):
+    permission_classes = []  # Allow anyone to try login
+
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        if not username or not password:
+            return Response({"error": "Username and password required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = authenticate(username=username, password=password)
+        if user is None:
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        token, created = Token.objects.get_or_create(user=user)
+
+        return Response({
+            "token": token.key,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "role": user.role if hasattr(user, "role") else None
+            }
+        }, status=status.HTTP_200_OK)
+
+# class QueueViewSet(viewsets.ModelViewSet):
+#     queryset = Queue.objects.all()
+#     serializer_class = QueueSerializer
 
 class QueueViewSet(viewsets.ModelViewSet):
     queryset = Queue.objects.all()
@@ -180,3 +231,33 @@ class QueueViewSet(viewsets.ModelViewSet):
         # Filter the queryset for today's entries
         self.queryset = Queue.objects.filter(created_at__gte=today_start)
         return super().list(request, *args, **kwargs)
+    
+    @action(detail=True, methods=['get'])
+    def position(self, request, pk=None):
+        """
+        Returns the position of this token in today's queue.
+        """
+        try:
+            queue_entry = self.get_object()
+        except Queue.DoesNotExist:
+            return Response({"error": "Token not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if queue_entry.is_served:
+            return Response({"message": "This token has already been served."}, status=status.HTTP_200_OK)
+
+        # Get today's date
+        today = timezone.now().date()
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+
+        # Count how many unserved, uncalled tokens have a smaller token_number
+        ahead = Queue.objects.filter(
+            created_at__gte=today_start,
+            is_called=False,
+            is_served=False,
+            token_number__lt=queue_entry.token_number
+        ).count()
+
+        return Response({
+            "token_number": queue_entry.token_number,
+            "people_ahead": ahead,
+        }, status=status.HTTP_200_OK)

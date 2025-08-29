@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'Token_System',
     'rest_framework',
+    'rest_framework.authtoken',
 ]
 
 # Custom user model
