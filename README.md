@@ -102,8 +102,8 @@ Daily queue reset maintains system cleanliness
 
 🌐 Usage Examples
 User Registration
-bash
-curl -X POST http://127.0.0.1:8000/api/register/ \
+
+POST http://127.0.0.1:8000/api/register/ \
   -H "Content-Type: application/json" \
   -d '{
     "username": "johnpatient",
@@ -113,8 +113,8 @@ curl -X POST http://127.0.0.1:8000/api/register/ \
     "date_of_birth": "1990-01-15"
   }'
 Join Queue
-bash
-curl -X POST http://127.0.0.1:8000/api/queues/join_queue/ \
+
+POST http://127.0.0.1:8000/api/queues/join_queue/ \
   -H "Content-Type: application/json" \
   -d '{"patient_id": 1}'
 
