@@ -22,4 +22,5 @@ from Token_System.views import LogoutView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('Token_System.urls')),
+    path('api/auth/', include('allauth.urls')),
 ]

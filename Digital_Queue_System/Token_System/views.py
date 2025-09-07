@@ -12,46 +12,120 @@ from rest_framework.decorators import api_view
 from datetime import datetime, timedelta
 from django.db.models import Max
 from django.contrib.auth import authenticate
-from .models import User
+from rest_framework.permissions import IsAuthenticated
+from .models import Diagnosis, MedicalNote, Treatment, User
+from rest_framework import filters
+from .tasks import send_appointment_reminder
+from django_filters.rest_framework import DjangoFilterBackend
+from django.contrib.auth.forms import PasswordResetForm
+from django.conf import settings
+from .filters import UserFilter
 from django.utils.decorators import method_decorator
 from rest_framework.authtoken.models import Token
-from .models import Department, Doctor, Patient, Appointment, Queue
+from .models import Department, Doctor, Patient, Appointment, Queue, MedicalRecord
 from .serializers import (
-    DepartmentSerializer, DoctorSerializer, PatientSerializer,
-    AppointmentSerializer, QueueSerializer, UserSerializer
+    DepartmentSerializer, DiagnosisSerializer, DoctorSerializer, MedicalNoteSerializer, PatientSerializer,
+    AppointmentSerializer, QueueSerializer, TreatmentSerializer, UserSerializer, 
+    UserProfileSerializer, MedicalRecordSerializer
 )
 
 # Generic ViewSets for CRUD
 
-# @method_decorator(csrf_exempt, name='dispatch')
+# ------------------------
+# Register Viewset
+# ------------------------
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = []
 
+# --------------------------------------------------
+# User ViewSet, including search fields and filter 
+# --------------------------------------------------
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    filterset_class = UserFilter
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    # Search fields - for general text search
+    search_fields = ['username', 'email', 'first_name', 'last_name']
+    
+    # Filter fields - for exact field matching
+    filterset_fields = ['role', 'is_active']
+    
+    # Ordering fields - for sorting
+    ordering_fields = ['username', 'email', 'date_joined', 'last_login']
+    ordering = ['username']  # Default ordering
 
 
+# ------------------------
+# Department ViewSet
+# ------------------------
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
 
-
+# ------------------------
+#Doctor ViewSet
+# ------------------------
 class DoctorViewSet(viewsets.ModelViewSet):
     queryset = Doctor.objects.all()
     serializer_class = DoctorSerializer
 
-
+# ------------------------
+#Patient ViewSet
+# ------------------------
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = PatientSerializer
 
-
+# ------------------------
+# Appointment ViewSet
+# ------------------------
 class AppointmentViewSet(viewsets.ModelViewSet):
     queryset = Appointment.objects.all()
     serializer_class = AppointmentSerializer
+
+    @action(detail=True, methods=['post'], url_path='send_reminder', url_name='send_reminder')
+    def send_reminder(self, request, pk=None):
+        """Manual endpoint to send reminder for specific appointment"""
+        appointment = self.get_object()
+        
+        # Send reminder using Celery task
+        send_appointment_reminder.delay(appointment.id)
+        
+        # Update reminder status
+        appointment.reminder_sent = True
+        appointment.save()
+        
+        return Response({
+            "message": f"Reminder sent for appointment {appointment.id}",
+            "patient": appointment.patient.name,
+            "date": appointment.date
+        })
+    
+    @action(detail=False, methods=['get'])
+    def upcoming_reminders(self, request):
+        """Get appointments needing reminders"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        now = timezone.now()
+        next_24h = now + timedelta(hours=24)
+        
+        appointments = Appointment.objects.filter(
+            date__gte=now,
+            date__lte=next_24h,
+            status='scheduled',
+            reminder_sent=False
+        )
+        
+        serializer = self.get_serializer(appointments, many=True)
+        return Response(serializer.data)
+
+# ------------------------
+# Logout View
+# ------------------------
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -64,6 +138,10 @@ class LogoutView(APIView):
             return Response({"error": "No active token found."}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"message": "Successfully logged out."}, status=status.HTTP_200_OK)
+
+# ------------------------
+# Login View
+# ------------------------
 
 class LoginView(APIView):
     permission_classes = []  # Allow anyone to try login
@@ -90,10 +168,11 @@ class LoginView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
-# class QueueViewSet(viewsets.ModelViewSet):
-#     queryset = Queue.objects.all()
-#     serializer_class = QueueSerializer
 
+
+# ------------------------
+# Queue ViewSet
+# ------------------------
 class QueueViewSet(viewsets.ModelViewSet):
     queryset = Queue.objects.all()
     serializer_class = QueueSerializer
@@ -261,3 +340,238 @@ class QueueViewSet(viewsets.ModelViewSet):
             "token_number": queue_entry.token_number,
             "people_ahead": ahead,
         }, status=status.HTTP_200_OK)
+    
+
+# ------------------------
+# Password Reset View
+# ------------------------
+class PasswordResetView(APIView):
+    permission_classes = []
+    
+    def post(self, request):
+        form = PasswordResetForm(request.data)
+        if form.is_valid():
+            form.save(
+                request=request,
+                use_https=request.is_secure(),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                email_template_name='account/password_reset_email.html'
+            )
+            return Response({"message": "Password reset email sent"}, status=status.HTTP_200_OK)
+        return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+# ------------------------
+# User Profile View
+# ------------------------
+
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get current user's profile"""
+        serializer = UserProfileSerializer(request.user)
+        return Response(serializer.data)
+    
+    def put(self, request):
+        """Update current user's profile"""
+        serializer = UserProfileSerializer(
+            request.user, 
+            data=request.data,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request):
+        """Partially update current user's profile"""
+        serializer = UserProfileSerializer(
+            request.user,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+# ------------------------
+# Change Password View
+# ------------------------
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        user = request.user
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+        
+        # Validate required fields
+        if not old_password or not new_password:
+            return Response(
+                {"error": "Both old_password and new_password are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify old password
+        if not user.check_password(old_password):
+            return Response(
+                {"error": "Wrong old password"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({"message": "Password updated successfully"})
+    
+# ------------------------
+# Medical Record ViewSet
+# ------------------------
+class MedicalRecordViewSet(viewsets.ModelViewSet):
+    serializer_class = MedicalRecordSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = MedicalRecord.objects.all()
+    
+    def get_queryset(self):
+        # Patients can only see their own records
+        # Doctors/staff can see all records
+        if self.request.user.role in ['doctor', 'staff', 'admin']:
+            return MedicalRecord.objects.all()
+        elif self.request.user.role == 'patient':
+            # Get patient profile for the current user
+            try:
+                patient = self.request.user.patient_profile
+                return MedicalRecord.objects.filter(patient=patient)
+            except Patient.DoesNotExist:
+                return MedicalRecord.objects.none()
+        return MedicalRecord.objects.none()
+    
+    def perform_create(self, serializer):
+        
+        serializer.save()
+
+# ----------------------------
+# Patient Medical RecordView
+# -----------------------------
+class PatientMedicalRecordView(APIView):
+    """Get medical record for a specific patient (for doctors)"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, patient_id):
+        if request.user.role not in ['doctor', 'staff', 'admin']:
+            return Response(
+                {"error": "Only medical staff can access patient records"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            patient = Patient.objects.get(id=patient_id)
+            medical_record = MedicalRecord.objects.get(patient=patient)
+            serializer = MedicalRecordSerializer(medical_record)
+            return Response(serializer.data)
+        except Patient.DoesNotExist:
+            return Response(
+                {"error": "Patient not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except MedicalRecord.DoesNotExist:
+            return Response(
+                {"error": "Medical record not found for this patient"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+# ----------------------------
+# Patient Medical History View
+# -----------------------------
+class PatientMedicalHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, patient_id):
+        # Check if user has permission to view medical history
+        if request.user.role not in ['doctor', 'staff', 'admin']:
+            return Response(
+                {"error": "Only medical staff can access patient medical history"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            patient = Patient.objects.get(id=patient_id)
+            
+            # Get all related data
+            appointments = Appointment.objects.filter(patient=patient).order_by('-date')
+            treatments = Treatment.objects.filter(appointment__patient=patient)
+            diagnoses = Diagnosis.objects.filter(appointment__patient=patient)
+            notes = MedicalNote.objects.filter(appointment__patient=patient)
+            
+            data = {
+                'patient': {
+                    'id': patient.id,
+                    'name': patient.name,
+                    'email': patient.email,
+                    'phone': patient.phone,
+                    'date_of_birth': patient.date_of_birth
+                },
+                'appointments': AppointmentSerializer(appointments, many=True).data,
+                'treatments': TreatmentSerializer(treatments, many=True).data,
+                'diagnoses': DiagnosisSerializer(diagnoses, many=True).data,
+                'medical_notes': MedicalNoteSerializer(notes, many=True).data,
+                'medical_record': MedicalRecordSerializer(patient.medical_record).data if hasattr(patient, 'medical_record') else None
+            }
+            
+            return Response(data)
+            
+        except Patient.DoesNotExist:
+            return Response(
+                {"error": "Patient not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+# ----------------------------
+# Treatment ViewSet
+# -----------------------------
+class TreatmentViewSet(viewsets.ModelViewSet):
+    serializer_class = TreatmentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        if self.request.user.role in ['doctor', 'staff', 'admin']:
+            return Treatment.objects.all()
+        return Treatment.objects.none()
+    
+    def perform_create(self, serializer):
+        serializer.save(prescribed_by=self.request.user.doctor_profile)
+
+# ----------------------------
+# Diagnosis ViewSet
+# -----------------------------
+class DiagnosisViewSet(viewsets.ModelViewSet):
+    serializer_class = DiagnosisSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        if self.request.user.role in ['doctor', 'staff', 'admin']:
+            return Diagnosis.objects.all()
+        return Diagnosis.objects.none()
+
+# ----------------------------
+# Medical Note ViewSet
+# -----------------------------
+class MedicalNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = MedicalNoteSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        if self.request.user.role in ['doctor', 'staff', 'admin']:
+            return MedicalNote.objects.all()
+        return MedicalNote.objects.none()
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user.doctor_profile)

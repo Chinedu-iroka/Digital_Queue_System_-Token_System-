@@ -70,24 +70,6 @@ class Patient(models.Model):
 
 
 # ------------------------
-# Appointment
-# ------------------------
-class Appointment(models.Model):
-    STATUS_CHOICES = (
-        ('scheduled', 'Scheduled'),
-        ('completed', 'Completed'),
-        ('canceled', 'Canceled'),
-    )
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="appointments")
-    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name="appointments")
-    date = models.DateTimeField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
-
-    def __str__(self):
-        return f"Appointment for {self.patient.name} with {self.doctor.name} on {self.date}"
-
-
-# ------------------------
 # Queue / Token System
 # ------------------------
 class Queue(models.Model):
@@ -102,3 +84,131 @@ class Queue(models.Model):
 
     def __str__(self):
         return f"Token {self.token_number} - {self.patient.name}"
+    
+# ------------------------
+# MedicalRecord
+# ------------------------
+class MedicalRecord(models.Model):
+        BLOOD_TYPE_CHOICES = (
+        ('A+', 'A+'),
+        ('A-', 'A-'),
+        ('B+', 'B+'),
+        ('B-', 'B-'),
+        ('AB+', 'AB+'),
+        ('AB-', 'AB-'),
+        ('O+', 'O+'),
+        ('O-', 'O-'),
+    )
+    
+        patient = models.OneToOneField(
+        Patient, 
+        on_delete=models.CASCADE, 
+        related_name='medical_record'
+    )
+        blood_type = models.CharField(max_length=3, choices=BLOOD_TYPE_CHOICES, blank=True, null=True)
+        allergies = models.TextField(blank=True, null=True, help_text="List of allergies")
+        chronic_conditions = models.TextField(blank=True, null=True, help_text="Chronic medical conditions")
+        current_medications = models.TextField(blank=True, null=True, help_text="Current medications")
+        emergency_contact_name = models.CharField(max_length=100, blank=True, null=True)
+        emergency_contact_phone = models.CharField(max_length=20, blank=True, null=True)
+        emergency_contact_relation = models.CharField(max_length=50, blank=True, null=True)
+        notes = models.TextField(blank=True, null=True, help_text="Additional medical notes")
+        created_at = models.DateTimeField(auto_now_add=True)
+        updated_at = models.DateTimeField(auto_now=True)
+
+        def __str__(self):
+            return f"Medical Record - {self.patient.name}"
+
+
+# ------------------------
+# Appointment
+# ------------------------
+class Appointment(models.Model):
+    STATUS_CHOICES = (
+        ('scheduled', 'Scheduled'),
+        ('completed', 'Completed'), 
+        ('canceled', 'Canceled'),
+        ('no_show', 'No Show'),
+    )
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="appointments")
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name="appointments")
+    date = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    reminder_sent = models.BooleanField(default=False)  # For appointment reminders
+    
+    def __str__(self):
+        return f"Appointment for {self.patient.name} with {self.doctor.name} on {self.date}"
+    
+
+# ------------------------
+# Patient Medical History
+# ------------------------
+class Treatment(models.Model):
+    TREATMENT_TYPES = (
+        ('medication', 'Medication'),
+        ('therapy', 'Therapy'),
+        ('surgery', 'Surgery'),
+        ('procedure', 'Procedure'),
+        ('other', 'Other'),
+    )
+    
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name="treatments")
+    treatment_type = models.CharField(max_length=20, choices=TREATMENT_TYPES)
+    name = models.CharField(max_length=200)
+    description = models.TextField()
+    dosage = models.CharField(max_length=100, blank=True, null=True)
+    duration = models.CharField(max_length=100, blank=True, null=True)
+    start_date = models.DateField()
+    end_date = models.DateField(blank=True, null=True)
+    prescribed_by = models.ForeignKey(Doctor, on_delete=models.CASCADE)
+    
+    def __str__(self):
+        return f"{self.name} for {self.appointment.patient.name}"
+
+
+# ------------------------
+# Diagnosis
+# ------------------------
+class Diagnosis(models.Model):
+    SEVERITY_CHOICES = (
+        ('mild', 'Mild'),
+        ('moderate', 'Moderate'),
+        ('severe', 'Severe'),
+        ('critical', 'Critical'),
+    )
+    
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name="diagnoses")
+    condition = models.CharField(max_length=200)
+    description = models.TextField()
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='mild')
+    diagnosed_date = models.DateField()
+    resolved = models.BooleanField(default=False)
+    resolved_date = models.DateField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"{self.condition} - {self.appointment.patient.name}"
+
+
+
+# ------------------------
+# MedicalNote
+# ------------------------
+class MedicalNote(models.Model):
+    NOTE_TYPES = (
+        ('progress', 'Progress Note'),
+        ('consultation', 'Consultation Note'),
+        ('discharge', 'Discharge Summary'),
+        ('procedure', 'Procedure Note'),
+        ('other', 'Other'),
+    )
+    
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name="notes")
+    note_type = models.CharField(max_length=20, choices=NOTE_TYPES)
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    created_by = models.ForeignKey(Doctor, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.title} - {self.appointment.patient.name}"

@@ -10,7 +10,7 @@ def auto_create_patient_profile(sender, instance, created, **kwargs):
     automatically create a Patient profile for them!
     """
     if created and instance.role == 'patient':
-        # Create Patient profile linked to this User
+        # Creates Patient profile linked to this User
         Patient.objects.create(
             user=instance,  
             name=instance.username,  # Use username as default name

@@ -1,12 +1,15 @@
 from django.contrib import admin
 
-# Register your models here.
-from .models import User, Department, Doctor, Patient, Appointment, Queue
+# imported models here.
+from .models import Diagnosis, MedicalNote, Treatment, User, Department, Doctor, Patient, Appointment, Queue
 
-# Simple registration without custom admin classes
+# my Simple admin registration
 admin.site.register(User)
 admin.site.register(Department)
 admin.site.register(Doctor)
 admin.site.register(Patient)
 admin.site.register(Appointment)
 admin.site.register(Queue)
+admin.site.register(Treatment)
+admin.site.register(Diagnosis)
+admin.site.register(MedicalNote)
