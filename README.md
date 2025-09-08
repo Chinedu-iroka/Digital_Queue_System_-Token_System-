@@ -31,7 +31,7 @@ Endpoint	Method	Description
 Clone the repository
 
 bash
-git clone <your-repo-url>
+git clone https://github.com/Chinedu-iroka/Digital_Queue_System_-Token_System-.git
 cd Digital_Queue_System
 Create virtual environment
 

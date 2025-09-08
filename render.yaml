@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: digital-queue-system
+    env: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "python manage.py migrate && gunicorn Digital_Queue_System.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: digital_queue_db
+          property: connectionString
