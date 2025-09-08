@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-(1=ksyjf82-g(sx!7v(zd#5z56!%1wv6epq7ewsi&gm#=k6m0-'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -142,12 +142,12 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'  # Or your email provider
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'your-email@gmail.com'  # Your email
-# EMAIL_HOST_PASSWORD = 'your-app-password'  # App password, NOT your email password
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com' 
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 SITE_ID = 1
@@ -192,12 +192,19 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROKER_URL = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # You'll need to set this to your Render URL later
-    ALLOWED_HOSTS = ['digital-queue-system.onrender.com', 'localhost', '127.0.0.1']
+if DEBUG:
+    ALLOWED_HOSTS = ['*']  
 else:
-    ALLOWED_HOSTS = ['*']
-
+    
+    ALLOWED_HOSTS = [
+        'digital-queue-system.onrender.com',  
+        'localhost',
+        '127.0.0.1'
+    ]
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
