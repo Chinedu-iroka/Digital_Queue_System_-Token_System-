@@ -24,11 +24,12 @@ from Token_System.views import LogoutView
 def home(request):
     return HttpResponse(
         """
-        <h1>🚀 Digital Queue System is live on Render!</h1>
+        <h1>Welcome To Digital Queue System!</h1>
+        <h2>A Backend API Developed By Chinedu Iroka - ALX Cohort 5</h2>
         <p>Visit the link below to continue:</p>
         <a href="https://digital-queue-system-b8v3.onrender.com/api/" 
            style="color:blue; text-decoration:none; font-weight:bold;" target="_blank">
-            👉 Go to API
+             Go to API Root
         </a>
         """,
         content_type="text/html"
