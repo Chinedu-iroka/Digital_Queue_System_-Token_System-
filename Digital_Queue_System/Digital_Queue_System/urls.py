@@ -22,7 +22,17 @@ from Token_System.views import LogoutView
 
 
 def home(request):
-    return HttpResponse("🚀 Digital Queue System is live on Render!")
+    return HttpResponse(
+        """
+        <h1>🚀 Digital Queue System is live on Render!</h1>
+        <p>Visit the link below to continue:</p>
+        <a href="https://digital-queue-system-b8v3.onrender.com/api/" 
+           style="color:blue; text-decoration:none; font-weight:bold;" target="_blank">
+            👉 Go to API
+        </a>
+        """,
+        content_type="text/html"
+    )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
