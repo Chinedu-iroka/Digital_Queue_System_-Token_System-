@@ -15,12 +15,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import path, include
 from rest_framework.authtoken.views import obtain_auth_token
 from Token_System.views import LogoutView
 
+
+def home(request):
+    return HttpResponse("🚀 Digital Queue System is live on Render!")
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path("", home),
     path('api/', include('Token_System.urls')),
     path('api/auth/', include('allauth.urls')),
 ]
